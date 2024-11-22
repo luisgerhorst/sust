@@ -1,6 +1,6 @@
 [submodule "aya"]
 	path = aya
-	url = git@github.com:aya-rs/aya.git
+	url = git@github.com:luisgerhorst/sust-aya.git
 [submodule "aya-book"]
 	path = aya-book
-	url = git@github.com:aya-rs/book.git
+	url = git@github.com:luisgerhorst/sust-aya-book.git

@@ -1,0 +1,181 @@
+#+title: Readme
+
+- Motivation
+  - We need unsafe BPF to prevent container escapes: https://www.youtube.com/watch?v=qaj-1a8lgeA
+- Design
+  - Why doesn't this make the problem worse (by adding rustc to the TCB)?
+    - Priv. service runs rustc in unpriv. container, only collects output.
+    - Borrow checker uses MIR which simplifies it and resolved a bunch of unsoundness bugs
+      - https://github.com/rust-lang/rust/issues/47366
+  - Can we have safe Rust interface for eBPF?
+    - How much does it restrict expressiveness?
+      - Not much, complex stuff can be written in safe Rust: https://lib.rs/crates/miniz_oxide, https://www.reddit.com/r/rust/comments/we91es/good_example_of_high_performance_rust_project/
+    - TODO: port larger program to sust to improve the argument
+      - aya users: https://aya-rs.dev/#_4
+        - https://www.deepfence.io/blog/aya-your-trusty-ebpf-companion
+    - Avoidable unsafe in aya examples
+      - aya sometimes uses unsafe for no reason (skb protocol)
+      - force unreachable!() in panic handler
+    - Rust has stronger safety than BPF regarding concurrency
+      - Rust treats corrupt scalars (due to no sync) as unsafe, but we can treat
+        them as safe in sust. Still, best solution to use atomics. Likely no
+        perf. overhead measurable.
+  - How to avoid rustc / lib bugs from easily allowing breakout from the inner sandbox?
+    - Disable rustc features:
+      - proc_macro
+        - Can execute arbitrary code at compile-time
+        - POC: https://github.com/eleijonmarck/do-not-compile-this-code/blob/master/innocent_lib/src/lib.rs
+        - Docs: https://doc.rust-lang.org/reference/procedural-macros.html
+      - #![feature(specialization)]
+        - https://github.com/rust-lang/rust/issues/40582
+      - panic
+        - causes unsoundness issue https://github.com/rust-lang/rust/issues/47949
+        - https://docs.rs/no-panic/latest/no_panic/
+          - not complete https://docs.rs/no-panic/latest/no_panic/#caveats
+      - unions
+        - reading union fields is unsafe anyway, thus only of use for trusted lib: https://doc.rust-lang.org/reference/items/unions.html
+        - used by https://github.com/Speykious/cve-rs/pull/31/files
+      - trait objects
+        - https://github.com/rust-lang/rust/issues/57893
+      - futures, async, generators
+        - https://github.com/rust-lang/rust/issues/63818
+      - https://doc.rust-lang.org/std/mem/struct.ManuallyDrop.html
+      - projections
+        - https://github.com/rust-lang/rust/issues/129005
+      - Self-referential type are a major soundness hazard. The rules about which self-referential structs are allowed are currently very murky, and no solution is guaranteed safe. Avoid if possible.
+        - https://www.reddit.com/r/rust/comments/10dhdys/rust_from_a_security_perspective_where_is_it/
+      - #[forbid(unsafe_code)] doesn't catch unsafe expanded from macros defined in other crates.
+      - https://public-docs.ferrocene.dev/main/specification/undefined-behavior.html
+      - https://public-docs.ferrocene.dev/main/specification/unsafety.html
+      - stuff after 1.49 like gccrs? https://lwn.net/Articles/954787/
+      - everything not in Oxide? https://weiss.city/pubs/draft19-oxide.pdf
+    - Limit resources
+      - Runtime:
+        - Anit-loop macro
+        - No more than one lock (to prevent deadlocks, TODO)
+      - Memory:
+        - LLVM stack analysis?
+        - No heap
+        - guarantee-non-static-destructors
+          - Given an object A implementing Drop whose lifetime is restricted to 'a (that is, the object may not live longer than 'a), in absence of unsafe code, the destructor for A is guaranteed to run before any code after the end of 'a is executed.
+            - This is already true at the language level. However, certain library constructs currently allow safe code to break it. [https://github.com/rkjnsn/rust-rfcs/blob/guarantee-non-static-destructors/text/0000-guaranteed-non-static-destructors.md]
+          - looked through some of the collections code in std to see if there was anything else that was relying on destructors for safety, and was pleased to see that there wasn't any that I could find (which isn't to say none exist)
+          - no leak bugs in compiler: https://github.com/rust-lang/rust/issues?q=is%3Aissue%20state%3Aclosed%20label%3AT-compiler%20label%3AI-memleak
+          - Memory leaks
+            - mem::forget/ManuallyDrop<T>
+              - https://doc.rust-lang.org/nomicon/leaking.html
+                - Drain
+                  - https://github.com/rust-lang/rfcs/pull/574
+                  - drain is a collections API that moves data out of the container without consuming the container. This enables us to reuse the allocation of a Vec after claiming ownership over all of its contents. It produces an iterator (Drain) that returns the contents of the Vec by-value.
+                - Rc<T>
+                  - ref_count can fit in a usize, because there can't be more than usize::MAX Rcs in memory. However this itself assumes that the ref_count accurately reflects the number of Rcs in memory, which we know is false with mem::forget. Using mem::forget we can overflow the ref_count, and then get it down to 0 with outstanding Rcs. Then we can happily use-after-free the inner data.
+                - thread::scoped::JoinGuard
+                  - Alt. fix: https://github.com/rust-lang/rfcs/pull/1085
+            - Rc/Arc
+              - The most famous example is creating a cycle of reference-counted pointers using interior mutability.
+              - are in fact several ways to write mem::forget using only safe code provided by the standard library. A few of them can be regarded as simply implementation bugs, but one is fundamental: rc::Rc.
+              - The only real problem seemed to be the alignment of the following stars: (https://cglab.ca/%7Eabeinges/blah/everyone-poops/) If you remove any of the following then there is no problem.
+                - Reference Counting
+                - Internal Mutability
+                - Rc accepting data that doesn't live forever (non-'static)
+              - Solution: Replace the existing Rc and Arc types with variants that this RFC will call ScopedRc and ScopedArc. These types will have a lifetime parameter added, and the contained RcBox will have an extra field to facilitate cycle collection. ScopedRc is described in detail, below, and ScopedArc will function analogously. [https://github.com/rkjnsn/rust-rfcs/blob/guarantee-non-static-destructors/text/0000-guaranteed-non-static-destructors.md]
+            - RefCell
+            - sync::mpsc::Sender (possibly not, see unresolved questions)
+            - when a destructor panics in certain situations (e.g., in a Vec)
+              - Solution: Specify that any panic that occurs while a destructor is in progress results in an abort. Panicking in a destructor is generally a bad idea with many edge cases, so this is probably desirable, anyway. It should be possible to implement this efficiently in a similar manner to C++’s noexcept. [https://github.com/rkjnsn/rust-rfcs/blob/guarantee-non-static-destructors/text/0000-guaranteed-non-static-destructors.md]
+    - Soundness checker architecture
+      - Checks on different IRs
+    - Compiler bugs that allow the compiled program to take over the process
+      - There should be no bugs in rustc that allow the compiled sourcecode to trivially take over the process.
+        - TODO: What does godbolt do?
+        - 100 potential issues: https://github.com/rust-lang/rust/issues?q=is%3Aissue%20state%3Aopen%20label%3AT-compiler%20label%3AI-crash
+          - 30 appear to be stack overflows: https://github.com/rust-lang/rust/issues?q=is%3Aissue%20state%3Aclosed%20label%3AT-compiler%20label%3AI-crash%20sort%3Acreated-asc%20stack%20overflow
+      - Mitigations
+        - rustc is written in Rust and could be compiled with sanitizers
+          - https://doc.rust-lang.org/rustc/exploit-mitigations.html
+          - heartbleed (and similar) would not have happened in rust https://blog.getreu.net/projects/embedded-system-security-with-Rust/
+        - set low fixed limits
+          - recursion_limit
+            - attribute may be applied at the crate level to set the maximum depth for potentially infinitely-recursive compile-time operations like macro expansion or auto-dereference https://doc.rust-lang.org/reference/attributes/limits.html#the-recursion_limit-attribute
+            - https://github.com/rust-lang/rust/issues/112992
+          - type_length_limit
+            - attribute limits the maximum number of type substitutions made
+              when constructing a concrete type during monomorphization
+              https://doc.rust-lang.org/reference/attributes/limits.html#the-type_length_limit-attribute
+            - Note: This limit is only enforced when the nightly -Zenforce-type-length-limit flag is active.
+        - LLVM backend could be replaced / compiled with sanitizers
+          - already less easy to exploit because input is rustc-generated
+        - Compartmentalization: Compiler does a bunch of queries on the IRs
+          - Seperate those into sandboxes to prevent exploits from allowing the bypass of all safety checks?
+          - Only modifying queries must be trusted
+    - Compiler bugs allowing unsound safe code
+      - Many are architecture-specific or rely on optional features
+        - Without those, it's only 30
+          - https://github.com/rust-lang/rust/issues?q=is%3Aissue%20state%3Aopen%20label%3AI-unsound%20AND%20(%20label%3AT-compiler%20OR%20label%3AT-lang%20)%20AND%20(-label%3AO-Arm%20-label%3AO-wasm%20-label%3AO-PowerPC%20-label%3AO-windows%20-label%3AO-AArch64%20-label%3AO-SPARC%20-label%3AO-x86_64%20-label%3AO-MIPS%20-label%3AO-windows-msvc%20-label%3AO-AVR%20-label%3AO-x86_32%20-label%3AA-inline-assembly%20-label%3AF-extern_types%20-label%3AF-type_alias_impl_trait%20-label%3Afixed-by-next-solver%20-label%3AF-thread_local%20-label%3AF-simd_ffi)%20&page=1
+          - Many are LLVM-dependent
+      - Are treated as "worst kind of bugs", 91 open as of 2024-10
+        - https://github.com/rust-lang/rust/issues?q=is%3Aissue%20state%3Aopen%20label%3AI-unsound%20
+          - fixable, trivial: https://github.com/rust-lang/rust/issues/17795
+          - can not happen with eBPF: https://github.com/rust-lang/rust/issues/18072
+            - handled well by Verifier, could be rechecked by additional checkers
+          - design flaw solved by next-gen trait solver: https://github.com/rust-lang/rust/issues/25860
+            - Turn local into static variable
+              - WIP, open since 2015: https://github.com/rust-lang/rust/issues/25860
+              - Only one included in "Memory-Safety Challenge Considered Solved? An In-Depth Study with All Rust CVEs": https://dl.acm.org/doi/pdf/10.1145/3466642?casa_token=KWWDSbPsjYsAAAAA:ZKHwQuW2exW8T1rFYpVDlWqytpi2HnjCeCWgkIeNKwIIFkYfNBn_76UlvyJ0WhWaKqP80QWIDxOj
+          - only relevant to unsafe: https://github.com/rust-lang/rust/issues/49206
+        - Severe cases
+          - https://specy.app/blog/posts/a-rustc-soundness-bug-in-the-wild
+          - Transmute primitives
+            - Contains a safe primitive that allows for a lot of other unsafe behavior: https://github.com/Speykious/cve-rs
+          - https://github.com/Speykious/cve-rs/pull/42
+            - Are usually fixed, but likely not as high-prio as they would have to be for our usecase
+            - Can be detected by running tests with sanitizers
+              - e.g. Miri (https://github.com/rust-lang/miri via https://github.com/Speykious/cve-rs/issues/3)
+              - Is there a way to gen. a test for a eBPF program automatically
+                - Verifier knows valid inputs, could be used but gen. the right environment would be hard
+    - The compiler tries to ensure that the reviewed code matches the compiled code
+      - https://blog.rust-lang.org/2021/11/01/cve-2021-42574.html
+    - Libs / the standard library may use unsafe incorrectly
+      - List of security-relevant bugs in libs: https://rustsec.org/advisories/
+      - Libraries using unsafe incorrectly
+        - https://rustsec.org/advisories/RUSTSEC-2021-0031.html
+          - https://github.com/bennetthardwick/nano-arena/issues/1
+- Eval
+  - security
+    - Fuzzing: not practical
+      - benchmark programs with known bugs that can be used as a ground truth to measure bug detection capabilities.
+      - structured mutation-based white/gray-box fuzzing
+        - if the input can be modelled as an abstract syntax tree, then a smart mutation-based fuzzer[33] would employ random transformations to move complete subtrees from one node to another.
+      - 10 unsoundness bug found using a fuzzer: https://github.com/rust-lang/rust/issues?q=label%3AI-unsound%20AND%20fuzz%20
+        - https://github.com/rust-lang/rust/issues/112213
+  - Performance
+    - no impact expected (programming language benchmark game)
+- Related work
+  - Prevail security
+    - Likely more permissive than Linux eBPF, might not hinder expressiveness much
+    - Uses a different analysis method
+  - Linux eBPF security
+    - Exploits are usually crafted at bytecode-level
+    - https://github.com/search?q=repo%3ANUS-Curiosity%2FKernJC%20bpf&type=code
+    - https://arxiv.org/pdf/2301.13421
+      - CVE-2022-23222:
+        - Rust enforces handling of Optional
+        - Assumes Rust API is defined with optional
+      - CVE-2020-27194:
+        - Generating the code without ~unsafe~ would be challenging
+        - Would require the rust compiler to generate an OOB access
+      - CVE-2021-34866:
+        - Rust API takes type: https://github.com/aya-rs/aya/blob/ab5e688fd49fcfb402ad47d51cb445437fbd8cb7/test/integration-ebpf/src/ring_buf.rs#L33
+        - Rust would have never allowed a type of size INT_MAX
+      - CVE-2023-2163: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=71b547f561247897a0a14f3082730156c0533fed
+  - eBPF System service
+    - Could be integrated into https://github.com/bpfman/bpfman maybe
+  - Alternative approaches to Rust
+    - A subset of Rust that is less complex
+    - A more restrictive domain-specific language
+    - Run Prevail on the bytecode
+    - Clam is an Abstract Interpretation-based static analyzer that computes inductive invariants for LLVM bitcode based on the Crab library. This branch supports LLVM 14: https://github.com/seahorn/clam
+  - Rust
+    - Most of https://web.cs.ucdavis.edu/~cdstanford/doc/2024/ASEW24a.pdf does not apply to BPF arch.
+      - Except for "Compiler Unsoundness". The have a few nice examples.
+    - Check MIR using abstract interpretation to find unsound behavior (caused by compiler bugs) with MIRChecker https://dl.acm.org/doi/pdf/10.1145/3460120.3484541?casa_token=cko6OE8i5S8AAAAA:1WHRBfmbaqSgfaok1mxTCeG54KPdLb5P7SvV28MrhYd-_tpRvbRcHL_DaSsptWRVsIvXH7FvAej- for the BPF program?
