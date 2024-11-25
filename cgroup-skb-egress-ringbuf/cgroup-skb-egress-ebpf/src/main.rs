@@ -8,6 +8,7 @@ use aya_ebpf::{
     black_box,
     macros::{cgroup_skb, map},
     maps::{HashMap, RingBuf, EbpfAtomicI64},
+    maps::ring_buf::RingBufEntry,
     programs::SkBuffContext,
 };
 use memoffset::offset_of;
@@ -87,7 +88,7 @@ pub const STATIC_UNIT: &&() = &&();
 
 // Workaround: https://github.com/Speykious/cve-rs/blob/main/src/transmute.rs#L38 does not work because aya does not offer a Box.
 #[allow(unused_assignments)]
-pub fn transmute<A: Copy, B: Copy>(obj: A) -> B {
+pub fn transmute<A, B>(obj: A) -> B {
 	// The layout of `DummyEnum` is approximately
 	// DummyEnum {
 	//     is_a_or_b: u8,
@@ -128,11 +129,19 @@ fn try_cgroup_skb_egress(ctx: SkBuffContext) -> Result<i32, i64> {
     //
     // Works:
     // let num = 64;
-    let log_entry = PacketLog {
+
+    let reservation = EVENTS.reserve(0);
+
+    let mut num_not_reservation: u64 = transmute(&reservation); // TODO: Ownership
+    num_not_reservation += 1;
+    // TODO
+
+    let allocation: RingBufEntry<PacketLog> = reservation.ok_or(1)?;
+    aya_ebpf::maps::ring_buf::maybeuninit_fill_with_value(*allocation, PacketLog {
         ipv4_address: 0,
         action: num,
-    };
-    EVENTS.output(&log_entry, 0)?;
+    });
+    allocation.submit(0);
 
     let protocol = ctx.skb.protocol();
     if protocol != ETH_P_IP {

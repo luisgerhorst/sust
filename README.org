@@ -65,7 +65,7 @@
             - looked through some of the collections code in std to see if there was anything else that was relying on destructors for safety, and was pleased to see that there wasn't any that I could find (which isn't to say none exist)
             - no leak bugs in compiler: https://github.com/rust-lang/rust/issues?q=is%3Aissue%20state%3Aclosed%20label%3AT-compiler%20label%3AI-memleak
             - Memory leaks
-              - mem::forget/ManuallyDrop<T>
+              - mem::forget/ManuallyDrop<T> and similar
                 - https://doc.rust-lang.org/nomicon/leaking.html
                   - Drain
                     - https://github.com/rust-lang/rfcs/pull/574
@@ -74,6 +74,7 @@
                     - ref_count can fit in a usize, because there can't be more than usize::MAX Rcs in memory. However this itself assumes that the ref_count accurately reflects the number of Rcs in memory, which we know is false with mem::forget. Using mem::forget we can overflow the ref_count, and then get it down to 0 with outstanding Rcs. Then we can happily use-after-free the inner data.
                   - thread::scoped::JoinGuard
                     - Alt. fix: https://github.com/rust-lang/rfcs/pull/1085
+                  - MaybeUninit.write() https://doc.rust-lang.org/std/mem/union.MaybeUninit.html#method.write
               - Rc/Arc
                 - The most famous example is creating a cycle of reference-counted pointers using interior mutability.
                 - are in fact several ways to write mem::forget using only safe code provided by the standard library. A few of them can be regarded as simply implementation bugs, but one is fundamental: rc::Rc.
