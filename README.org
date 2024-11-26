@@ -197,19 +197,40 @@
 
 ** Submission
 
-- Using Trusted Compilation from Safe Rust as a Second-Level Defense to Mitigate eBPF Verifier Bugs
-  - bugs in the verifier are a recurring problem
-  - these enable container breakout and priviledge escalation for unprivileged ebpf
-  - approaches to resolve this include
-    - fuzzing the ebpf verifier
-    - formal verification of the verifier
-      - full coverage unrealistic in the mid-term
-    - using hardware-based isolation (Address Spaces/MPKs, ARM-MTE) to catch
-      prohibited operations, that slipped through during verification, at
-      runtime
-  - can not reliably prevent exploits in the mid-term, or suffer from runtime overheads
+Title: Using Trusted Compilation from Safe Rust to Mitigate Bugs in the eBPF Verifier
 
-  - In this talk, we analyze an alternative approach to mitigating verifier bugs
-    by requireing unprivileged eBPF programs to be compiled from safe Rust
-    by a trusted systems service.
-  - This approach is expected to have negligible runtime overheads, rarely restrict eBPF expressiveness, and can
+The eBPF verifier has repeatedly suffered from bugs in its verification
+algorithm which enable malicious applications to perform container escapes and
+privilege escalation. To improve upon this, existing work applies fuzzing [1]
+and formal methods [2] to the verifier in order to find and fix bugs. However,
+in the mid-term, these approaches are unlikely to result in a verifier that is
+fully bug-free. While academic works have proposed the use of hardware-based
+isolation [3-5] and software-fault isolation [6] to mitigate verifier bugs,
+these approaches suffer from portability issues, require significant
+design-changes with unclear consequences, or have runtime overheads.
+
+Motivated by the shortcomings of the existing approaches, this talk discusses an
+alternative approach to prevent verifier-bugs from being exploited. By requiring
+eBPF bytecode to be compiled from *safe* Rust source code by a trusted systems
+service, program-safety would effectively be checked twice by two very different
+static analyzers (i.e., rustc's compiler passes and the eBPF verifier). Therefore, a bug in one of
+the analyzers will no longer directly result in a kernel exploit as the other
+analyzer is unlikely to exhibit the same buggy behavior and therefore still
+catch malicious programs. This approach is appealing as it is unlikely to result in runtime
+overheads and does not require significant changes to the kernel.
+
+We analyze whether this is a viable approach to mitigate bugs in the eBPF
+verifier, taking runtime-overheads, expressiveness, and security into
+consideration. Specifically, we analyze whether past bugs in rustc and the eBPF
+verifier could have been chained together in order to exploit the proposed
+design as a whole. If we find that this is the case, we plan to analyze whether
+there are any fundamental changes (e.g., disabling complex and bug-prone rustc
+features) that would have prevented the exploit(s).
+
+References:
+1. The State of eBPF Fuzzing (https://lpc.events/event/18/contributions/1933/)
+2. Agni: Fast Formal Verification of the Verifier's Range Analysis (https://lpc.events/event/18/contributions/1937/)
+3. MOAT: Towards Safe BPF Kernel Extensions (https://www.usenix.org/conference/usenixsecurity24/presentation/lu-hongyi)
+4. Hive: A Hardware-assisted Isolated Execution Environment for eBPF on AArch64 (https://www.usenix.org/conference/usenixsecurity24/presentation/zhang-peihua)
+5. SafeBPF: Hardware-assisted Defense-in-depth for eBPF Kernel Extensions (https://dl.acm.org/doi/10.1145/3689938.3694781)
+6. BeeBox: Hardening BPF against Transient Execution Attacks (https://www.usenix.org/conference/usenixsecurity24/presentation/jin-di)
