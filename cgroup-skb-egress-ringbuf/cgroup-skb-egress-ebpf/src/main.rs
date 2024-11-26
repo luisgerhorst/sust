@@ -118,11 +118,11 @@ pub fn transmute<A, B>(obj: A) -> B {
 
 fn try_cgroup_skb_egress(ctx: SkBuffContext) -> Result<i32, i64> {
 
-    // Leak ctx location
+    // Leak ctx location but cought by eBPF verifier
     //
     // Rejected by eBPF verifier (fc41) if num is 32-bit: invalid size of register spill
     // Accepted by priv. eBPF verifier, leaks pointer to map.
-    let num = transmute(ctx);
+    // let num: u64 = transmute(ctx);
     //
     // Rejected by Rust compiler:
     // let num = ctx;
@@ -132,14 +132,13 @@ fn try_cgroup_skb_egress(ctx: SkBuffContext) -> Result<i32, i64> {
 
     let reservation = EVENTS.reserve(0);
 
-    let mut num_not_reservation: u64 = transmute(&reservation); // TODO: Ownership
-    num_not_reservation += 1;
-    // TODO
+    let num_not_reservation: &mut u64 = transmute(&reservation);
+    *num_not_reservation += 1;
 
     let allocation: RingBufEntry<PacketLog> = reservation.ok_or(1)?;
     aya_ebpf::maps::ring_buf::maybeuninit_fill_with_value(*allocation, PacketLog {
         ipv4_address: 0,
-        action: num,
+        action: *num_not_reservation,
     });
     allocation.submit(0);
 
