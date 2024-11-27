@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+bash -n "$(command -v "$0")"
+shopt -s nullglob
+set -x
+
+git pull --recurse-submodules
+git submodule update --init --recursive
