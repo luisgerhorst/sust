@@ -1,4 +1,4 @@
-FROM debian:bookworm
+FROM debian:trixie
 
 ARG USER
 ARG UID
@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install --yes --no-install-recommends \
     curl \
     gnupg
 
+RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 RUN apt-get update && apt-get install --yes --no-install-recommends \
     arch-test \
     autoconf \
@@ -59,7 +60,6 @@ RUN apt-get update && apt-get install --yes --no-install-recommends \
     zlib1g-dev \
     lsb-release \
     wget \
-    software-properties-common \
     gnupg \
     cmake \
     libdw-dev \
@@ -74,12 +74,25 @@ RUN apt-get update && apt-get install --yes --no-install-recommends \
 	ccache \
     trash-cli \
     zstd \
-    clang-13 \
-    libcap-dev
+    libcap-dev \
+    pipx \
+    gcc-13 \
+    clang \
+    lld \
+    llvm \
+    llvm-15 lld-15 clang-15 \
+    git qemu-kvm udev iproute2 busybox-static \
+    coreutils python3-requests python3-argcomplete libvirt-clients kbd kmod file rsync zstd virtiofsd
+
+RUN apt update
 
 # autossh dwarves golang gcc-multilib
 
-RUN apt update
+# Install virtme-ng v1.31, requires Debian Trixie's rustc version
+RUN apt-get install --yes --no-install-recommends python3-pip flake8 pylint cargo rustc qemu-system-x86
+RUN mkdir -p /usr/local/src
+RUN git clone --recurse-submodules https://github.com/arighi/virtme-ng.git /usr/local/src/virtme-ng
+RUN cd /usr/local/src/virtme-ng && git checkout v1.31 && BUILD_VIRTME_NG_INIT=1 pipx install --global .
 
 RUN echo "$USER *=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
 
