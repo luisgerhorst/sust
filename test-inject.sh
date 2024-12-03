@@ -5,8 +5,7 @@ set -x
 
 sudo mkdir -p /sys/fs/cgroup/aya-book-cgroup-skb-egress
 
-rm -f target/debug/cgroup-skb-egress
-RUST_LOG=info cargo xtask run &
+RUST_LOG=info ../cgroup-skb-egress-ringbuf/target/debug/cgroup-skb-egress &
 c=$!
 
 sleep 1

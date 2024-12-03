@@ -4,13 +4,14 @@ bash -n "$(command -v "$0")"
 shopt -s nullglob
 set -x
 
-export name=$(basename $(pwd))
+export name=$(basename $(pwd))-$USER
 ./docker-build.sh $name
 
 SCRIPT_DIR=$(realpath $(realpath $(dirname ${BASH_SOURCE[0]})))
 docker run --tty --interactive \
-	--volume $HOME:$HOME \
- 	--volume $SCRIPT_DIR:$SCRIPT_DIR \
+	--privileged \
+	--volume $HOME:$HOME:Z \
+ 	--volume $SCRIPT_DIR:$SCRIPT_DIR:Z \
 	--network=host \
 	-h $name.$(hostname) \
 	--env USER=$USER \
