@@ -7,10 +7,10 @@ set -x
 export name=$(basename $(pwd))
 ./docker-build.sh $name
 
-# SCRIPT_DIR=$(realpath $(realpath $(dirname ${BASH_SOURCE[0]})))
-# 	--volume $SCRIPT_DIR:$SCRIPT_DIR
+SCRIPT_DIR=$(realpath $(realpath $(dirname ${BASH_SOURCE[0]})))
 docker run --tty --interactive \
 	--volume $HOME:$HOME \
+ 	--volume $SCRIPT_DIR:$SCRIPT_DIR \
 	--network=host \
 	-h $name.$(hostname) \
 	--env USER=$USER \
