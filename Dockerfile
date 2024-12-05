@@ -1,4 +1,4 @@
-FROM debian:trixie
+FROM debian:bookworm
 
 ARG USER
 ARG UID
@@ -75,24 +75,24 @@ RUN apt-get update && apt-get install --yes --no-install-recommends \
     trash-cli \
     zstd \
     libcap-dev \
-    pipx \
-    gcc-13 \
     clang \
     lld \
     llvm \
-    llvm-15 lld-15 clang-15 \
     git qemu-kvm udev iproute2 busybox-static \
-    coreutils python3-requests python3-argcomplete libvirt-clients kbd kmod file rsync zstd virtiofsd
+    coreutils python3-requests python3-argcomplete libvirt-clients kbd kmod file rsync zstd
+# virtiofsd
 
-RUN apt update
+RUN echo "deb http://deb.debian.org/debian bookworm-backports main" >> /etc/apt/sources.list.d/backports.list
 
-# autossh dwarves golang gcc-multilib
+RUN apt-get update
+
+# autossh dwarves golang gcc-multilib virtiofsd/bookworm-backports
 
 # Install virtme-ng v1.31, requires Debian Trixie's rustc version
-RUN apt-get install --yes --no-install-recommends python3-pip flake8 pylint cargo rustc qemu-system-x86
+RUN apt-get install --yes --no-install-recommends python3-pip flake8 pylint cargo rustc qemu-system-x86 pipx # pipx/bookworm-backports
 RUN mkdir -p /usr/local/src
 RUN git clone --recurse-submodules https://github.com/arighi/virtme-ng.git /usr/local/src/virtme-ng
-RUN cd /usr/local/src/virtme-ng && git checkout v1.31 && BUILD_VIRTME_NG_INIT=1 pipx install --global .
+RUN cd /usr/local/src/virtme-ng && git checkout v1.31 && BUILD_VIRTME_NG_INIT=1 PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin PIPX_MAN_DIR=/usr/local/share/man pipx install .
 
 RUN echo "$USER *=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
 
