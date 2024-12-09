@@ -1,18 +1,15 @@
 [submodule "aya"]
 	path = aya
 	url = git@github.com:luisgerhorst/sust-aya.git
-[submodule "aya-book"]
-	path = aya-book
-	url = git@github.com:luisgerhorst/sust-aya-book.git
 [submodule "linux"]
-	path = yocto/linux
+	path = kernel/linux
 	url = git@github.com:luisgerhorst/sust-linux.git
 [submodule "poky"]
 	path = poky
 	url = git://git.yoctoproject.org/poky
-[submodule "yocto/poky"]
-	path = yocto/poky
-	url = git://git.yoctoproject.org/poky
-[submodule "yocto/yocto-kernel-cache"]
-	path = yocto/yocto-kernel-cache
-	url = git://git.yoctoproject.org/yocto-kernel-cache
+[submodule "virtme-ng"]
+	path = virtme-ng
+	url = https://github.com/arighi/virtme-ng.git
+[submodule "ebpf/sust-aya"]
+	path = ebpf/sust-aya
+	url = git@github.com:luisgerhorst/sust-aya.git

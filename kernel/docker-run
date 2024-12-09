@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+bash -n "$(command -v "$0")"
+shopt -s nullglob
+set -x
+
+export name=$(basename $(pwd))-$USER
+./docker-build.sh $name
+
+SCRIPT_DIR=$(realpath $(realpath $(dirname ${BASH_SOURCE[0]})))
+docker run --tty --interactive \
+	--privileged \
+	--volume $HOME:$HOME:Z \
+ 	--volume $SCRIPT_DIR:$SCRIPT_DIR:Z \
+	--network=host \
+	-h $name.$(hostname) \
+	--env USER=$USER \
+	$name env -C $(pwd) /usr/bin/zsh
