@@ -11,5 +11,5 @@
 	path = virtme-ng
 	url = https://github.com/arighi/virtme-ng.git
 [submodule "ebpf/sust-aya"]
-	path = ebpf/sust-aya
+	path = ebpf/aya
 	url = git@github.com:luisgerhorst/sust-aya.git
