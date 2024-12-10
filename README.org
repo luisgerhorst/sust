@@ -1,0 +1,29 @@
+#+title: susT
+
+* Quick Start
+
+Build the vuln. kernel:
+
+#+begin_src sh
+cd kernel
+./docker-run
+# In the container:
+cp defconfig linux/.config
+make -C linux -j $(nproc) olddefconfig vmlinux modules bzImage
+#+end_src
+
+Build the exploit:
+
+#+begin_src sh
+# on bookworm with rustup
+pushd ebpf/cgroup-skb-egress-ringbuf
+./build.sh
+#+end_src
+
+Run the exploit:
+
+#+begin_src sh
+./virtme-ng/vng -r kernel/linux/arch/x86/boot/bzImage
+# In the vm:
+env -C ebpf/cgroup-skb-egress-ringbuf ./run.sh
+#+end_src
