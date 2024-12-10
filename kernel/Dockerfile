@@ -76,7 +76,8 @@ RUN apt-get update && apt-get install --yes --no-install-recommends \
     llvm \
     git qemu-kvm udev iproute2 busybox-static \
     coreutils libvirt-clients kbd kmod file rsync zstd \
-    locales
+    locales \
+    libncurses-dev
 # virtiofsd
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
