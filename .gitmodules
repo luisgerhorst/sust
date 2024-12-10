@@ -13,3 +13,6 @@
 [submodule "ebpf/sust-aya"]
 	path = ebpf/aya
 	url = git@github.com:luisgerhorst/sust-aya.git
+[submodule "KernJC"]
+	path = KernJC
+	url = git@github.com:NUS-Curiosity/KernJC.git

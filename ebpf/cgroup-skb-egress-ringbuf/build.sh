@@ -4,4 +4,5 @@ set -euo pipefail
 set -x
 
 rm -f target/debug/cgroup-skb-egress
-RUST_LOG=info cargo xtask run
+RUST_LOG=info cargo xtask build-ebpf
+cargo build
