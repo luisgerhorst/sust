@@ -130,17 +130,25 @@ fn try_cgroup_skb_egress(ctx: SkBuffContext) -> Result<i32, i64> {
     // Works:
     // let num = 64;
 
-    let reservation = EVENTS.reserve(0);
-
+    let reservation: Option<RingBufEntry<PacketLog>> = EVENTS.reserve(0);
     let num_not_reservation: &mut u64 = transmute(&reservation);
-    *num_not_reservation += 1;
+    let r1 = core::hint::black_box(*num_not_reservation) + core::hint::black_box(1);
 
-    let allocation: RingBufEntry<PacketLog> = reservation.ok_or(1)?;
-    aya_ebpf::maps::ring_buf::maybeuninit_fill_with_value(*allocation, PacketLog {
-        ipv4_address: 0,
-        action: *num_not_reservation,
-    });
-    allocation.submit(0);
+    // let allocation: RingBufEntry<PacketLog> = reservation.ok_or(1)?;
+    match reservation {
+        None => {
+            // TODO: Verifier thinks r1 is 0, but it is 1. Exploit that.
+            return Ok(r1 as i32)
+        }
+        Some(allocation) => {
+            allocation.discard(0);
+            // allocation.submit(PacketLog {
+            //     ipv4_address: 42,
+            //     action: 7,
+            // }, 0);
+            return Ok(1)
+        }
+    }
 
     let protocol = ctx.skb.protocol();
     if protocol != ETH_P_IP {
@@ -153,7 +161,7 @@ fn try_cgroup_skb_egress(ctx: SkBuffContext) -> Result<i32, i64> {
     let action = if block_ip(destination) { 0 } else { 1 };
 
     let log_entry = PacketLog {
-        ipv4_address: destination,
+        ipv4_address: u64::from(destination),
         action,
     };
     EVENTS.output(&log_entry, 0)?;

@@ -91,7 +91,7 @@ async fn main() -> Result<(), anyhow::Error> {
             println!("Received: {:?}", item);
             let ptr = item.as_ptr() as *const PacketLog;
             let data = unsafe { ptr.read_unaligned() };
-            let src_addr = Ipv4Addr::from(data.ipv4_address);
+            let src_addr = Ipv4Addr::from(data.ipv4_address as u32);
             info!("LOG: DST {}, ACTION {}", src_addr, data.action);
         }
     }

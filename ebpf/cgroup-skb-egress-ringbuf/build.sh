@@ -3,6 +3,6 @@
 set -euo pipefail
 set -x
 
-rm -f target/debug/cgroup-skb-egress
+# rm -rfd target/debug/cgroup-skb-egress target/bpfel-unknown-none
 RUST_LOG=info cargo xtask build-ebpf
 cargo build

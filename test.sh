@@ -4,9 +4,7 @@ bash -n "$(command -v "$0")"
 shopt -s nullglob
 set -x
 
-# To be run in the docker container for reproducibility!
+# TODO: commands to build kernel
 
-# Use LLVM because gcc version of trixie not supported by v5.15 kernels.
-cd linux && vng --build LLVM=1
-
-# TODO
+env -C ./ebpf/cgroup-skb-egress-ringbuf ./build.sh
+vng --verbose --cpus 2 -r kernel/linux/arch/x86/boot/bzImage -- env -C ./ebpf/cgroup-skb-egress-ringbuf ./test.sh
