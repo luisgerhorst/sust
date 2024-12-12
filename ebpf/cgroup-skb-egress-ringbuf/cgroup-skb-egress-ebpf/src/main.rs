@@ -152,7 +152,7 @@ fn try_cgroup_skb_egress(ctx: SkBuffContext) -> Result<i32, i64> {
     // 17: (07) r1 += -8
     // 18: (79) r1 = *(u64 *)(r10 -8)
     // 19: (55) if r1 != 0x0 goto pc+2
-    // 20: (67) r0 <<= 1
+    // 20: (27) r0 *= 7
     // 21: (05) goto pc+3
     // 22: (b7) r2 = 0
     // 23: (85) call bpf_ringbuf_discard#198064
@@ -171,7 +171,7 @@ fn try_cgroup_skb_egress(ctx: SkBuffContext) -> Result<i32, i64> {
     // 10: (07) r2 += 1
     // 11: (7b) r0 = *(u64 *)(r10 -8) = r2
     // 19: (55) if r1 != 0x0 goto pc+2
-    // 20: (67) r0 <<= 1
+    // 20: (67) r0 *= 7
     // 21: (05) goto pc+3
     // 22: (b7) r2 = 0
     // 23: (85) call bpf_ringbuf_discard#198064
@@ -186,12 +186,12 @@ fn try_cgroup_skb_egress(ctx: SkBuffContext) -> Result<i32, i64> {
     //  6: (7b) r1 = r0
     // 10: (07) r0 += 1 // arithmetric not tracked by verifier
     // 19: (55) if r1 != 0x0 goto pc+2
-    // 20: (67) r0 <<= 1 // verifier thinks it's 0, but it's 0 or 2
+    // 20: (67) r0 *= 7 // verifier thinks it's 0, but it's 7
     // 21: (05) goto pc+3
     // 22: (b7) r2 = 0
     // 23: (85) call bpf_ringbuf_discard#198064
     // 24: (b7) r0 = 1
-    // 25: (95) exit // returns 2 instead of 0/1
+    // 25: (95) exit // returns 7 instead of 0/1
 
     let r0: Option<RingBufEntry<PacketLog>> = EVENTS.reserve(0);
     let r0_ref: &usize = transmute(&r0);
