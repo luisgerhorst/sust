@@ -2,17 +2,7 @@
 
 * Quick Start
 
-Build the vulnerable kernel:
-
-#+begin_src sh
-cd kernel
-./docker-run
-# In the container:
-cp defconfig linux/.config
-make -C linux -j $(nproc) olddefconfig vmlinux modules bzImage
-#+end_src
-
-Run the exploit in the VM:
+Run the exploit in the VM with the vulnerable kernel:
 
 #+begin_src sh
 ./test.sh

@@ -4,6 +4,8 @@ bash -n "$(command -v "$0")"
 shopt -s nullglob
 set -x
 
+CMD=${1:-/usr/bin/zsh}
+
 export name=$(basename $(pwd))-$USER
 ./docker-build.sh $name
 
@@ -15,4 +17,4 @@ docker run --tty --interactive \
 	--network=host \
 	-h $name.$(hostname) \
 	--env USER=$USER \
-	$name env -C $(pwd) /usr/bin/zsh
+	$name $CMD
