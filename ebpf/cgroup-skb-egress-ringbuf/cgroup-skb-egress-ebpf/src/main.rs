@@ -130,43 +130,113 @@ fn try_cgroup_skb_egress(ctx: SkBuffContext) -> Result<i32, i64> {
     // Works:
     // let num = 64;
 
-    let reservation: Option<RingBufEntry<PacketLog>> = EVENTS.reserve(0);
-    let num_not_reservation: &mut u64 = transmute(&reservation);
-    let r1 = core::hint::black_box(*num_not_reservation) + core::hint::black_box(1);
+    // Compiles to:
+    //
+    //+ sudo bpftool prog dump xlated name cgroup_skb_egre
+    //  0: (18) r1 = map[id:5]
+    //  2: (b7) r2 = 16
+    //  3: (b7) r3 = 0
+    //  4: (85) call bpf_ringbuf_reserve#197600
+    //  5: (bf) r1 = r0
+    //  6: (7b) *(u64 *)(r10 -8) = r1
+    //  7: (bf) r2 = r10
+    //  8: (07) r2 += -8
+    //  9: (79) r2 = *(u64 *)(r10 -8)
+    // 10: (07) r2 += 1
+    // 11: (7b) *(u64 *)(r10 -8) = r2
+    // 12: (bf) r2 = r10
+    // 13: (07) r2 += -8
+    // 14: (79) r0 = *(u64 *)(r10 -8)
+    // 15: (7b) *(u64 *)(r10 -8) = r1
+    // 16: (bf) r1 = r10
+    // 17: (07) r1 += -8
+    // 18: (79) r1 = *(u64 *)(r10 -8)
+    // 19: (55) if r1 != 0x0 goto pc+2
+    // 20: (67) r0 <<= 1
+    // 21: (05) goto pc+3
+    // 22: (b7) r2 = 0
+    // 23: (85) call bpf_ringbuf_discard#198064
+    // 24: (b7) r0 = 1
+    // 25: (95) exit
+    //
+    //
+    // Shortened:
+    //
+    //+ sudo bpftool prog dump xlated name cgroup_skb_egre
+    //  0: (18) r1 = map[id:5]
+    //  2: (b7) r2 = 16
+    //  3: (b7) r3 = 0
+    //  4: (85) call bpf_ringbuf_reserve#197600
+    //  6: (7b) r2 = *(u64 *)(r10 -8) = r1 = r0
+    // 10: (07) r2 += 1
+    // 11: (7b) r0 = *(u64 *)(r10 -8) = r2
+    // 19: (55) if r1 != 0x0 goto pc+2
+    // 20: (67) r0 <<= 1
+    // 21: (05) goto pc+3
+    // 22: (b7) r2 = 0
+    // 23: (85) call bpf_ringbuf_discard#198064
+    // 24: (b7) r0 = 1
+    // 25: (95) exit
+    //
+    //+ sudo bpftool prog dump xlated name cgroup_skb_egre
+    //  0: (18) r1 = map[id:5]
+    //  2: (b7) r2 = 16
+    //  3: (b7) r3 = 0
+    //  4: (85) call bpf_ringbuf_reserve#197600
+    //  6: (7b) r1 = r0
+    // 10: (07) r0 += 1 // arithmetric not tracked by verifier
+    // 19: (55) if r1 != 0x0 goto pc+2
+    // 20: (67) r0 <<= 1 // verifier thinks it's 0, but it's 0 or 2
+    // 21: (05) goto pc+3
+    // 22: (b7) r2 = 0
+    // 23: (85) call bpf_ringbuf_discard#198064
+    // 24: (b7) r0 = 1
+    // 25: (95) exit // returns 2 instead of 0/1
+
+    let r0: Option<RingBufEntry<PacketLog>> = EVENTS.reserve(0);
+    let r0_ref: &usize = transmute(&r0);
+    let r0_copy = core::hint::black_box(*r0_ref);
+    let r1 = core::hint::black_box(r0_copy + 1);
 
     // let allocation: RingBufEntry<PacketLog> = reservation.ok_or(1)?;
-    match reservation {
+    match core::hint::black_box(r0) {
         None => {
             // TODO: Verifier thinks r1 is 0, but it is 1. Exploit that.
-            return Ok(r1 as i32)
+            // let array: [i64; 8] = core::hint::black_box([0; 8]);
+            // let secret = array[r1 * 8];
+            // let secret = 3;
+            // if core::hint::black_box(r6) == 0 || core::hint::black_box(r1) == 7 {
+            //     return Ok(r6 as i32)
+            // }
+            Ok((r1 * 7) as i32)
         }
-        Some(allocation) => {
-            allocation.discard(0);
+        Some(r0) => {
+            r0.discard(0);
             // allocation.submit(PacketLog {
             //     ipv4_address: 42,
             //     action: 7,
             // }, 0);
-            return Ok(1)
+            Ok(1)
         }
     }
 
-    let protocol = ctx.skb.protocol();
-    if protocol != ETH_P_IP {
-        return Ok(1);
-    }
+    // let protocol = ctx.skb.protocol();
+    // if protocol != ETH_P_IP {
+    //     return Ok(1);
+    // }
 
-    let destination = u32::from_be(ctx.load(offset_of!(iphdr, daddr))?);
+    // let destination = u32::from_be(ctx.load(offset_of!(iphdr, daddr))?);
 
-    // (3)
-    let action = if block_ip(destination) { 0 } else { 1 };
+    // // (3)
+    // let action = if block_ip(destination) { 0 } else { 1 };
 
-    let log_entry = PacketLog {
-        ipv4_address: u64::from(destination),
-        action,
-    };
-    EVENTS.output(&log_entry, 0)?;
+    // let log_entry = PacketLog {
+    //     ipv4_address: u64::from(destination),
+    //     action,
+    // };
+    // EVENTS.output(&log_entry, 0)?;
 
-    Ok(action as i32)
+    // Ok(action as i32)
 }
 
 const ETH_P_IP: u32 = 8;
