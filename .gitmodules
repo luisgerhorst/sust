@@ -15,4 +15,10 @@
 	url = git@github.com:luisgerhorst/sust-aya.git
 [submodule "KernJC"]
 	path = KernJC
-	url = git@github.com:NUS-Curiosity/KernJC.git
+	url = git@github.com:luisgerhorst/sust-KernJC.git
+[submodule "ebpf-verifier"]
+	path = ebpf-verifier
+	url = git@github.com:vbpf/ebpf-verifier.git
+[submodule "libbpf-bootstrap"]
+	path = libbpf-bootstrap
+	url = git@github.com:libbpf/libbpf-bootstrap.git

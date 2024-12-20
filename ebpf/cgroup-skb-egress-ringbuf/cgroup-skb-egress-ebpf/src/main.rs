@@ -201,13 +201,11 @@ fn try_cgroup_skb_egress(ctx: SkBuffContext) -> Result<i32, i64> {
     // let allocation: RingBufEntry<PacketLog> = reservation.ok_or(1)?;
     match core::hint::black_box(r0) {
         None => {
-            // TODO: Verifier thinks r1 is 0, but it is 1. Exploit that.
+            // Verifier thinks r1 is 0, but it is 1. Exploit that.
+            //
             // let array: [i64; 8] = core::hint::black_box([0; 8]);
             // let secret = array[r1 * 8];
             // let secret = 3;
-            // if core::hint::black_box(r6) == 0 || core::hint::black_box(r1) == 7 {
-            //     return Ok(r6 as i32)
-            // }
             Ok((r1 * 7) as i32)
         }
         Some(r0) => {
