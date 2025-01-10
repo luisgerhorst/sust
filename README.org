@@ -2,8 +2,10 @@
 
 * Quick Start
 
-Run the exploit in the VM with the vulnerable kernel:
-
 #+begin_src sh
-./test.sh
+# Run the exploit in the VM with the vulnerable kernel:
+./test-rustc.sh
+
+# Test that PREVAIL is not vulnerable:
+./test-prevail.sh
 #+end_src
