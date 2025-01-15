@@ -22,3 +22,6 @@
 [submodule "libbpf-bootstrap"]
 	path = libbpf-bootstrap
 	url = git@github.com:libbpf/libbpf-bootstrap.git
+[submodule "linux-dev"]
+	path = linux-dev
+	url = git@github.com:torvalds/linux.git
