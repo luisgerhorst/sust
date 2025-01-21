@@ -6,6 +6,8 @@
 # Run the exploit in the VM with the vulnerable kernel:
 ./test-rustc.sh
 
-# Test that PREVAIL is not vulnerable:
+# Test that PREVAIL is not vulnerable to CVE-2017-16995:
 ./test-prevail.sh
 #+end_src
+
+See https://github.com/vbpf/ebpf-verifier/discussions/824 on why a PREVAIL-based layered verification design can still be exploited. 
