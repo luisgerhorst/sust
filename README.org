@@ -3,7 +3,7 @@
 * Quick Start
 
 #+begin_src sh
-# Run the exploit in the VM with the vulnerable kernel:
+# Run the exploit compiled from safe Rust in a VM with the vulnerable kernel:
 ./test-rustc.sh
 
 # Test that PREVAIL is not vulnerable to CVE-2017-16995:
